@@ -38,12 +38,7 @@ const CONTAINER_SELECTORS = [
 ];
 
 // Shorts-style (portrait) containers, used to pick a placeholder orientation.
-const SHORTS_SELECTORS = [
-  "ytm-shorts-lockup-view-model",
-  "ytm-shorts-lockup-view-model-v2",
-  "ytd-reel-item-renderer",
-  "ytd-shorts",
-];
+const SHORTS_SELECTORS = ["ytm-shorts-lockup-view-model", "ytm-shorts-lockup-view-model-v2", "ytd-reel-item-renderer", "ytd-shorts"];
 
 // Positive markers for a *video thumbnail* image. An image is only ever
 // swapped if it sits inside one of these — this is what keeps channel avatars
@@ -118,9 +113,7 @@ let keywords = [];
 function loadKeywords() {
   return new Promise((resolve) => {
     chrome.storage.local.get({ keywords: [] }, (data) => {
-      keywords = (data.keywords || [])
-        .map((k) => String(k).toLowerCase())
-        .filter(Boolean);
+      keywords = (data.keywords || []).map((k) => String(k).toLowerCase()).filter(Boolean);
       resolve();
     });
   });
@@ -140,22 +133,24 @@ function findContainer(el) {
   return null;
 }
 
-// Video-thumbnail images in a card: must be inside a thumbnail wrapper (or a
-// /watch|/shorts link) AND not inside anything avatar-ish. Avatars fail the
-// positive test, so they are never swapped.
+// Is this title part of a Short? Shorts are handled via a CSS marker rather
+// than an img-src swap (see the Shorts branch in processTitleElement).
+function isShort(el) {
+  return !!el.closest(`${SHORTS_SELECTORS.join(",")}, a[href*="/shorts/"]`);
+}
+
+// Video-thumbnail images in a card, excluding channel avatars. Requires a
+// positive thumbnail marker so channel avatars are never swapped.
 function videoThumbImgs(scope) {
   const thumbSel = THUMB_WRAPPER_SELECTORS.join(",");
   const avatarSel = AVATAR_SELECTORS.join(",");
-  return Array.from(scope.querySelectorAll("img")).filter(
-    (img) => img.closest(thumbSel) && !img.closest(avatarSel)
-  );
+  return Array.from(scope.querySelectorAll("img")).filter((img) => img.closest(thumbSel) && !img.closest(avatarSel));
 }
 
-function isPortrait(img, scope) {
+function isPortrait(img) {
   const w = img.clientWidth;
   const h = img.clientHeight;
-  if (w && h) return h > w;
-  return !!(scope && scope.matches(SHORTS_SELECTORS.join(",")));
+  return !!(w && h) && h > w;
 }
 
 function redactThumbnails(scope) {
@@ -167,9 +162,7 @@ function redactThumbnails(scope) {
     if (src && !isPlaceholder(src)) {
       img.setAttribute("data-ytr-orig-src", src);
     }
-    const placeholder = isPortrait(img, scope)
-      ? placeholderPortrait
-      : placeholderLandscape;
+    const placeholder = isPortrait(img) ? placeholderPortrait : placeholderLandscape;
     if (img.getAttribute("src") !== placeholder) {
       img.setAttribute("src", placeholder);
     }
@@ -191,7 +184,7 @@ function setRedacted(el) {
   if (el.hasAttribute("aria-label")) el.setAttribute("aria-label", REDACTED_TEXT);
 }
 
-function restore(el, orig) {
+function restoreTitle(el, orig) {
   if (orig) {
     el.textContent = orig;
     if (el.getAttribute("title") === REDACTED_TEXT) el.setAttribute("title", orig);
@@ -199,12 +192,50 @@ function restore(el, orig) {
       el.setAttribute("aria-label", orig);
     }
   }
+}
+
+// Original titles for redacted Shorts, kept in a WeakMap rather than a DOM
+// attribute: the Shorts title lives in lit-managed DOM that strips foreign
+// attributes, but a Map entry keyed by the element survives.
+const shortOrig = new WeakMap();
+
+// Shorts get the same title redaction as videos, but the thumbnail is hidden
+// with a CSS marker (markShort/unmarkShort) instead of an img-src swap, and the
+// original title is tracked in shortOrig instead of a data-* attribute.
+function processShort(el, text) {
+  const orig = shortOrig.get(el);
+
+  if (titleMatches(text)) {
+    if (DEBUG()) console.debug(`[YTR] redacting short: "${text}"`);
+    shortOrig.set(el, text);
+    setRedacted(el);
+    markShort(el);
+  } else if (text === REDACTED_TEXT && orig && titleMatches(orig)) {
+    // Still ours and still matching; re-apply in case the text was reverted.
+    setRedacted(el);
+    markShort(el);
+  } else {
+    // Non-matching real title (recycled node), or keyword removed. Restore the
+    // text if we own it, then clear our marks.
+    if (text === REDACTED_TEXT && orig) restoreTitle(el, orig);
+    shortOrig.delete(el);
+    unmarkShort(el);
+  }
+}
+
+function restore(el, orig) {
+  restoreTitle(el, orig);
   el.removeAttribute("data-ytr-orig-title");
   restoreThumbnails(findContainer(el));
 }
 
 function processTitleElement(el) {
   const text = (el.textContent || el.getAttribute("title") || "").trim();
+
+  if (isShort(el)) {
+    processShort(el, text);
+    return;
+  }
 
   if (titleMatches(text)) {
     // A real, matching title is visible: remember it, redact it, hide its thumb.
@@ -242,27 +273,32 @@ function collectTitleElements(root) {
     root.querySelectorAll(sel).forEach((e) => els.add(e));
   }
 
-  root
-    .querySelectorAll('a[href*="/watch?v="], a[href*="/shorts/"]')
-    .forEach((a) => {
-      const txt = (a.textContent || "").trim();
-      if (txt && !a.querySelector("img")) els.add(a);
-    });
+  root.querySelectorAll('a[href*="/watch?v="], a[href*="/shorts/"]').forEach((a) => {
+    const txt = (a.textContent || "").trim();
+    if (txt && !a.querySelector("img")) els.add(a);
+  });
 
-  return els;
+  // Keep only the OUTERMOST of any nested matches. A Short's title matches both
+  // as the title <a> and as the <span> inside it; processing both makes them
+  // fight (one redacts + marks, the other sees "[REDACTED]" and unmarks). One
+  // element per title avoids that.
+  const arr = Array.from(els);
+  return arr.filter((el) => !arr.some((other) => other !== el && other.contains(el)));
 }
 
 function scan(root = document) {
-  // Nothing to do only when there are no keywords AND nothing is redacted.
-  // (If a redaction exists we must still run so it can be restored.)
-  if (keywords.length === 0 && !document.querySelector("[data-ytr-orig-title]")) {
+  // Nothing to do only when there are no keywords AND nothing is redacted
+  // (videos set data-ytr-orig-title; Shorts set data-ytr-short). If a redaction
+  // exists we must still run so it can be restored.
+  if (
+    keywords.length === 0 &&
+    !document.querySelector("[data-ytr-orig-title], [data-ytr-short]")
+  ) {
     return;
   }
   const els = collectTitleElements(root);
   if (DEBUG()) {
-    console.debug(
-      `[YTR] scan: ${els.size} title candidates, keywords=[${keywords.join(", ")}]`
-    );
+    console.debug(`[YTR] scan: ${els.length} title candidates, keywords=[${keywords.join(", ")}]`);
   }
   els.forEach(processTitleElement);
 }
@@ -298,7 +334,82 @@ function resolvePlaceholders() {
   });
 }
 
+// Shorts get a different treatment than regular videos. Swapping a Short's
+// thumbnail `src` fails: YouTube reactively reverts it, causing constant
+// flashing. Instead we paint the portrait placeholder over the Short with a
+// CSS rule (injected into <head>, which YouTube never reconciles) keyed off a
+// marker attribute on a stable, non-lit ancestor. Nothing on the Short's own
+// (lit-managed) DOM is modified, so there is nothing for YouTube to fight.
+function injectStyles() {
+  if (document.getElementById("ytr-style")) return;
+  const png = chrome.runtime.getURL("images/redacted-short.png");
+  const svg = redactedImage(1080, 1920); // fallback if the PNG isn't present
+  const style = document.createElement("style");
+  style.id = "ytr-style";
+  style.textContent = `
+    [data-ytr-short] { position: relative !important; }
+    [data-ytr-short]::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      /* Cover only the thumbnail (Shorts thumbs are 9:16), not the title. */
+      aspect-ratio: 2 / 3;
+      z-index: 100;
+      background-color: #000;
+      background-image: url("${png}"), url("${svg}");
+      background-repeat: no-repeat, no-repeat;
+      background-position: center, center;
+      background-size: cover, cover;
+      pointer-events: none;
+      border-radius: 8px;
+    }
+  `;
+  (document.head || document.documentElement).appendChild(style);
+}
+
+const SHORT_LOCKUP_SELECTOR =
+  "ytm-shorts-lockup-view-model, ytm-shorts-lockup-view-model-v2, ytd-reel-item-renderer";
+
+// The element to mark for a Short. It must live OUTSIDE lit's managed DOM, or
+// the marker gets stripped: a Short is a stack of nested lit hosts
+// (ytm-shorts-lockup-view-model-v2 > ytm-shorts-lockup-view-model > …), and
+// editing the title makes lit re-render them. So we find the OUTERMOST shorts
+// lockup and climb past every `*-view-model` to the first normal wrapper
+// (e.g. div#content / ytd-rich-item-renderer), which renders a box, wraps this
+// one Short, and lit never touches.
+function shortCard(el) {
+  let lockup = null;
+  for (let n = el; n; n = n.parentElement) {
+    if (n.matches && n.matches(SHORT_LOCKUP_SELECTOR)) lockup = n; // keep climbing → outermost
+  }
+  if (lockup) {
+    let card = lockup.parentElement;
+    while (card && /view-model/i.test(card.tagName)) card = card.parentElement;
+    return card || lockup;
+  }
+  return (
+    el.closest("ytd-rich-item-renderer, ytd-grid-video-renderer") ||
+    findContainer(el) ||
+    el
+  );
+}
+
+function markShort(el) {
+  const card = shortCard(el);
+  if (card && card.getAttribute("data-ytr-short") !== "1") {
+    card.setAttribute("data-ytr-short", "1");
+  }
+}
+
+function unmarkShort(el) {
+  const card = shortCard(el);
+  if (card) card.removeAttribute("data-ytr-short");
+}
+
 function start() {
+  injectStyles();
   resolvePlaceholders();
   scan();
 
@@ -311,9 +422,7 @@ function start() {
 
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && changes.keywords) {
-      keywords = (changes.keywords.newValue || [])
-        .map((k) => String(k).toLowerCase())
-        .filter(Boolean);
+      keywords = (changes.keywords.newValue || []).map((k) => String(k).toLowerCase()).filter(Boolean);
       scan();
     }
   });
