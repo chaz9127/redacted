@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "YouTube Title Redactor",
+  "version": "1.0.0",
+  "description": "Redacts YouTube video titles that contain your blocklisted keywords and hides their thumbnails.",
+  "permissions": ["storage"],
+  "host_permissions": ["*://*.youtube.com/*"],
+  "action": {
+    "default_title": "YouTube Title Redactor",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.youtube.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["images/*"],
+      "matches": ["*://*.youtube.com/*"]
+    }
+  ]
+}

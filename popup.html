@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>YouTube Title Redactor</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Title Redactor</h1>
+      <p class="subtitle">Hide videos whose titles contain your keywords.</p>
+    </header>
+
+    <form id="add-form">
+      <input
+        type="text"
+        id="keyword-input"
+        placeholder="Add a title keyword…"
+        autocomplete="off"
+        maxlength="100"
+      />
+      <button type="submit" id="add-btn">Add</button>
+    </form>
+
+    <input
+      type="search"
+      id="search-input"
+      placeholder="Search your list…"
+      autocomplete="off"
+    />
+
+    <ul id="keyword-list"></ul>
+    <p id="empty-msg" class="empty">No keywords yet.</p>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
