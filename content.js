@@ -290,10 +290,10 @@ function resolvePlaceholders() {
     };
     im.src = url;
   };
-  tryLoad(chrome.runtime.getURL("images/redacted-landscape.png"), (u) => {
+  tryLoad(chrome.runtime.getURL("images/redacted-video.png"), (u) => {
     placeholderLandscape = u;
   });
-  tryLoad(chrome.runtime.getURL("images/redacted-portrait.png"), (u) => {
+  tryLoad(chrome.runtime.getURL("images/redacted-short.png"), (u) => {
     placeholderPortrait = u;
   });
 }
