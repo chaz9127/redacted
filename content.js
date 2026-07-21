@@ -109,11 +109,28 @@ const DEBUG = () => {
 };
 
 let keywords = [];
+let keywordPatterns = [];
+
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Build case-insensitive whole-word/phrase matchers. A keyword only matches
+// when bounded by non-alphanumeric characters (or string edges), so "doom"
+// matches the word "doom" but not "doomsday". Multi-word keywords match as a
+// whole phrase.
+function setKeywords(list) {
+  keywords = (list || []).map((k) => String(k).trim()).filter(Boolean);
+  keywordPatterns = keywords.map(
+    (kw) =>
+      new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp(kw)}(?![\\p{L}\\p{N}])`, "iu")
+  );
+}
 
 function loadKeywords() {
   return new Promise((resolve) => {
     chrome.storage.local.get({ keywords: [] }, (data) => {
-      keywords = (data.keywords || []).map((k) => String(k).toLowerCase()).filter(Boolean);
+      setKeywords(data.keywords);
       resolve();
     });
   });
@@ -121,8 +138,7 @@ function loadKeywords() {
 
 function titleMatches(text) {
   if (!text) return false;
-  const lower = text.toLowerCase();
-  return keywords.some((kw) => lower.includes(kw));
+  return keywordPatterns.some((re) => re.test(text));
 }
 
 function findContainer(el) {
@@ -422,7 +438,7 @@ function start() {
 
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && changes.keywords) {
-      keywords = (changes.keywords.newValue || []).map((k) => String(k).toLowerCase()).filter(Boolean);
+      setKeywords(changes.keywords.newValue);
       scan();
     }
   });
