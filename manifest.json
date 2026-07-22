@@ -1,12 +1,12 @@
 {
   "manifest_version": 3,
-  "name": "YouTube Title Redactor",
-  "version": "1.0.0",
-  "description": "Redacts YouTube video titles that contain your blocklisted keywords and hides their thumbnails.",
+  "name": "Redactor",
+  "version": "1.0.1",
+  "description": "Redacts YouTube video and shorts titles that contain your blocklisted keywords and hides their thumbnails.",
   "permissions": ["storage"],
   "host_permissions": ["*://*.youtube.com/*"],
   "action": {
-    "default_title": "YouTube Title Redactor",
+    "default_title": "Redactor",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "images/icon16.png",
