@@ -6,6 +6,52 @@ const emptyMsg = document.getElementById("empty-msg");
 
 let keywords = [];
 
+// Sites the extension runs on. `id` must match the name each content script
+// passes to runRedactor(). A site missing from storage counts as enabled.
+const SITES = [
+  { id: "youtube", label: "YouTube" },
+  { id: "reddit", label: "Reddit" },
+];
+
+const settingsBtn = document.getElementById("settings-btn");
+const settingsPanel = document.getElementById("settings-panel");
+const siteList = document.getElementById("site-list");
+
+let sites = {};
+
+function loadSites() {
+  chrome.storage.local.get({ sites: {} }, (data) => {
+    sites = data.sites || {};
+    renderSites();
+  });
+}
+
+function renderSites() {
+  siteList.innerHTML = "";
+  for (const site of SITES) {
+    const label = document.createElement("label");
+    label.className = "site-option";
+
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.checked = sites[site.id] !== false;
+    box.addEventListener("change", () => {
+      sites = { ...sites, [site.id]: box.checked };
+      chrome.storage.local.set({ sites });
+    });
+
+    label.appendChild(box);
+    label.appendChild(document.createTextNode(site.label));
+    siteList.appendChild(label);
+  }
+}
+
+settingsBtn.addEventListener("click", () => {
+  const open = settingsPanel.hidden;
+  settingsPanel.hidden = !open;
+  settingsBtn.setAttribute("aria-expanded", String(open));
+});
+
 function loadKeywords() {
   chrome.storage.local.get({ keywords: [] }, (data) => {
     keywords = data.keywords || [];
@@ -83,3 +129,4 @@ addForm.addEventListener("submit", (e) => {
 searchInput.addEventListener("input", render);
 
 loadKeywords();
+loadSites();

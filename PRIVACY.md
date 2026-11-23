@@ -1,8 +1,8 @@
-# Privacy Policy — YouTube Title Redactor
+# Privacy Policy — Redactor
 
 **Effective date:** July 21, 2026
 
-YouTube Title Redactor ("the extension") is designed to respect your privacy.
+Redactor ("the extension") is designed to respect your privacy.
 This policy explains what the extension does and does not do with your data.
 
 ## Summary
@@ -37,10 +37,10 @@ This keyword list:
 ## Permissions
 
 - **Storage:** used solely to save your keyword list locally on your device.
-- **Host access to youtube.com:** used solely to read video titles on YouTube
-  pages and, where a title matches one of your keywords, replace the title text
-  and cover the associated thumbnail. No page content is recorded or sent
-  anywhere.
+- **Host access to youtube.com and reddit.com:** used solely to read video and
+  post titles on YouTube and Reddit pages and, where a title matches one of
+  your keywords, replace the title text and cover the associated thumbnail or
+  media. No page content is recorded or sent anywhere.
 
 ## Changes to this policy
 

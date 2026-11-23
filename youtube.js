@@ -1,4 +1,4 @@
-// YouTube Title Redactor — content script
+// Redactor — YouTube content script (shared helpers live in common.js)
 // For any video whose title contains a blocklisted keyword: replace the title
 // text with "[REDACTED]" and swap the thumbnail image for a black "[REDACTED]"
 // placeholder. Removing the keyword restores both.
@@ -7,8 +7,6 @@
 //  - Decisions are made from each element's CURRENT text every pass, because
 //    YouTube's Polymer/lit layers re-render and recycle DOM nodes as you
 //    scroll. Everything here is idempotent and driven by a MutationObserver.
-
-const REDACTED_TEXT = "[REDACTED]";
 
 // Elements that hold a video title across YouTube's various layouts.
 const TITLE_SELECTORS = [
@@ -73,20 +71,6 @@ const AVATAR_SELECTORS = [
   'a[href^="/user/"]',
 ];
 
-// A black "[REDACTED]" placeholder image, generated as an inline SVG data URI.
-// Used as a fallback until the bundled PNGs (images/redacted-*.png) load.
-function redactedImage(w, h) {
-  const fontSize = w >= h ? 150 : 130;
-  const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" ` +
-    `viewBox="0 0 ${w} ${h}"><rect width="100%" height="100%" fill="black"/>` +
-    `<text x="50%" y="50%" fill="white" ` +
-    `font-family="Arial, Helvetica, sans-serif" font-weight="bold" ` +
-    `font-size="${fontSize}" text-anchor="middle" ` +
-    `dominant-baseline="central">[REDACTED]</text></svg>`;
-  return "data:image/svg+xml," + encodeURIComponent(svg);
-}
-
 const SVG_PREFIX = "data:image/svg+xml,";
 const EXT_IMG_PREFIX = chrome.runtime.getURL("images/");
 
@@ -97,48 +81,6 @@ let placeholderPortrait = redactedImage(1080, 1920);
 
 function isPlaceholder(src) {
   return src.startsWith(SVG_PREFIX) || src.startsWith(EXT_IMG_PREFIX);
-}
-
-// Toggle logging from the page console: `localStorage.ytrDebug = 1` then reload.
-const DEBUG = () => {
-  try {
-    return localStorage.getItem("ytrDebug") === "1";
-  } catch (e) {
-    return false;
-  }
-};
-
-let keywords = [];
-let keywordPatterns = [];
-
-function escapeRegExp(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-// Build case-insensitive whole-word/phrase matchers. A keyword only matches
-// when bounded by non-alphanumeric characters (or string edges), so "doom"
-// matches the word "doom" but not "doomsday". Multi-word keywords match as a
-// whole phrase.
-function setKeywords(list) {
-  keywords = (list || []).map((k) => String(k).trim()).filter(Boolean);
-  keywordPatterns = keywords.map(
-    (kw) =>
-      new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp(kw)}(?![\\p{L}\\p{N}])`, "iu")
-  );
-}
-
-function loadKeywords() {
-  return new Promise((resolve) => {
-    chrome.storage.local.get({ keywords: [] }, (data) => {
-      setKeywords(data.keywords);
-      resolve();
-    });
-  });
-}
-
-function titleMatches(text) {
-  if (!text) return false;
-  return keywordPatterns.some((re) => re.test(text));
 }
 
 function findContainer(el) {
@@ -192,12 +134,6 @@ function restoreThumbnails(scope) {
     img.setAttribute("src", img.getAttribute("data-ytr-orig-src"));
     img.removeAttribute("data-ytr-orig-src");
   });
-}
-
-function setRedacted(el) {
-  if (el.textContent !== REDACTED_TEXT) el.textContent = REDACTED_TEXT;
-  if (el.getAttribute("title") !== null) el.setAttribute("title", REDACTED_TEXT);
-  if (el.hasAttribute("aria-label")) el.setAttribute("aria-label", REDACTED_TEXT);
 }
 
 function restoreTitle(el, orig) {
@@ -319,17 +255,6 @@ function scan(root = document) {
   els.forEach(processTitleElement);
 }
 
-// Debounced re-scan for dynamically loaded / re-rendered content.
-let scheduled = false;
-function scheduleScan() {
-  if (scheduled) return;
-  scheduled = true;
-  requestAnimationFrame(() => {
-    scheduled = false;
-    scan();
-  });
-}
-
 // Use the bundled PNGs if they exist; otherwise keep the SVG fallback. We
 // probe by loading them — a missing file fires onerror and we simply keep the
 // SVG, so the extension works whether or not the images are present.
@@ -427,21 +352,7 @@ function unmarkShort(el) {
 function start() {
   injectStyles();
   resolvePlaceholders();
-  scan();
-
-  const observer = new MutationObserver(scheduleScan);
-  observer.observe(document.documentElement, {
-    childList: true,
-    subtree: true,
-    characterData: true,
-  });
-
-  chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === "local" && changes.keywords) {
-      setKeywords(changes.keywords.newValue);
-      scan();
-    }
-  });
 }
 
-loadKeywords().then(start);
+start();
+runRedactor("youtube", scan);

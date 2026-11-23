@@ -37,6 +37,59 @@ header h1 {
   font-size: 16px;
 }
 
+.header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.icon-btn {
+  display: flex;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  padding: 4px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.icon-btn:hover,
+.icon-btn[aria-expanded="true"] {
+  background: var(--hover);
+  color: var(--fg);
+}
+
+.settings {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 12px;
+}
+
+.settings h2 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.settings-hint {
+  margin: 2px 0 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.site-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  cursor: pointer;
+}
+
+.site-option input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+
 .subtitle {
   margin: 2px 0 12px;
   font-size: 12px;

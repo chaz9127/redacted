@@ -1,10 +1,15 @@
 {
   "manifest_version": 3,
   "name": "Redactor",
-  "version": "1.0.1",
-  "description": "Redacts YouTube video and shorts titles that contain your blocklisted keywords and hides their thumbnails.",
-  "permissions": ["storage"],
-  "host_permissions": ["*://*.youtube.com/*"],
+  "version": "1.1.0",
+  "description": "Redacts YouTube video titles and Reddit post titles that contain your blocklisted keywords and hides their thumbnails.",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "*://*.youtube.com/*",
+    "*://*.reddit.com/*"
+  ],
   "action": {
     "default_title": "Redactor",
     "default_popup": "popup.html",
@@ -23,15 +28,35 @@
   },
   "content_scripts": [
     {
-      "matches": ["*://*.youtube.com/*"],
-      "js": ["content.js"],
+      "matches": [
+        "*://*.youtube.com/*"
+      ],
+      "js": [
+        "common.js",
+        "youtube.js"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "*://*.reddit.com/*"
+      ],
+      "js": [
+        "common.js",
+        "reddit.js"
+      ],
       "run_at": "document_start"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["images/*"],
-      "matches": ["*://*.youtube.com/*"]
+      "resources": [
+        "images/*"
+      ],
+      "matches": [
+        "*://*.youtube.com/*",
+        "*://*.reddit.com/*"
+      ]
     }
   ]
 }
